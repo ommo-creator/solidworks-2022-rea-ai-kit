@@ -54,11 +54,11 @@
 
 | 路径 | 内容 | 规模 |
 |---|---|---|
-| [`SKILL.md`](SKILL.md) | **AI 入口**：通道矩阵、六条铁律、签名速查、坑清单压缩版、配方表 | 190 行 |
+| [`SKILL.md`](SKILL.md) | **AI 入口**：通道矩阵、六条铁律、签名速查、坑清单压缩版、配方表 | 176 行 |
 | [`docs/01-channel-and-rules.md`](docs/01-channel-and-rules.md) | 通道矩阵 + 六条铁律（哪条路能走，为什么） | — |
 | [`docs/02-signatures.md`](docs/02-signatures.md) | 精确签名：实参个数、`[out]` 位置、枚举值 | — |
-| [`docs/03-pitfalls.md`](docs/03-pitfalls.md) | **完整坑清单**（近 100 条），每条含现象、原因、判据 | 57 KB |
-| [`docs/04-recipes.md`](docs/04-recipes.md) | 可直接抄的配方 R1–R36（建模/装配/工程图/剖视/导出） | 31 KB |
+| [`docs/03-pitfalls.md`](docs/03-pitfalls.md) | **完整坑清单**（近 100 条），每条含现象、原因、判据 | 82 KB / 783 行 |
+| [`docs/04-recipes.md`](docs/04-recipes.md) | 可直接抄的配方 R1–R36（建模/装配/工程图/剖视/导出） | 38 KB / 600 行 |
 | [`docs/05-sections.md`](docs/05-sections.md) | 剖视图：3D 剖切与 2D 工程图剖视两条路 | — |
 | [`docs/06-line-art-figures.md`](docs/06-line-art-figures.md) | 纯线稿附图：A4 无图框、单图单页、编号引线、图序 | — |
 | [`docs/07-silence.md`](docs/07-silence.md) | 静默打开：25 个对话框抑制开关与 `Silent` 配方 | — |
@@ -77,8 +77,8 @@
 | [`data/docs-index.json`](data/docs-index.json) | **12,127 个方法页**索引 | 6.8 MB |
 | [`data/examples-index.json`](data/examples-index.json) | 官方示例索引（C#/VB/C++ 正文片段） | 5.2 MB |
 | [`data/features.json`](data/features.json) | 19 行特征参数表（可机读） | 8 KB |
-| [`data/enums.json`](data/enums.json) | **889 个 `swconst` 枚举 / 5,142 个数值** + 113 个枚举 2,599 个成员名 | 235 KB |
-| [`scripts/swe.py`](scripts/swe.py) | 一站式助手：连接、选择、特征、剖视、导出、体积对账 | 27 KB |
+| [`data/enums.json`](data/enums.json) | **889 个 `swconst` 枚举 / 5,142 个数值** + 113 个枚举 2,599 个成员名 | 317 KB |
+| [`scripts/swe.py`](scripts/swe.py) | 一站式助手：连接、选择、特征、剖视、导出、体积对账 | 26 KB / 617 行 |
 | [`scripts/extract_enums.py`](scripts/extract_enums.py) | 从反编译 CHM 重建 `data/enums.json` | — |
 | [`scripts/preflight.py`](scripts/preflight.py) | 环境自检（python / comtypes / comtypes.gen / 进程 / 模板） | — |
 | [`scripts/gb9124_2019.py`](scripts/gb9124_2019.py) | GB/T 9124.1-2019 板式平焊法兰尺寸表（示例数据） | — |

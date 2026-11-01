@@ -9,12 +9,17 @@ metadata:
 ---
 
 # SolidWorks COM 逆向实测
-本技能**不是**建模教程。它只回答三类问题：
+> 本文既是**仓库入口**，也可以直接作为一份 Agent Skill 放进 `skills/` 目录使用。
+> 完整说明见 [`README.md`](README.md)；配套数据在 `data/`，可跑示例在 `examples/`。
+> 全部结论实测于 **SolidWorks 2022 SP5.0 (30.5.0.0049)**。
+
+本文**不是**建模教程。它只回答三类问题：
 
 1. 为什么脚本报 `Invalid index` / `类型不匹配` / `返回 None` / `窗口假死`？
 2. 这个特征方法**到底**该传几个参数、第几个是角度、哪个是 [out]？
 3. 怎么用**数值**（体积/质量）证明脚本真的建了东西，而不是"看起来跑成功了"？
-建模策略、设计审查 → `sw-designer`；批量交付流水线 → `solidworks-automation`。
+
+建模策略与设计审查不在本文范围；本文只负责"让代码真的动起来"。
 
 ## 1. 通道矩阵（第一个决策，选错会浪费几小时）
 | 通道 | Application 级 | 文档对象（ModelDoc2/FeatureManager/SketchManager） | 判定 |
