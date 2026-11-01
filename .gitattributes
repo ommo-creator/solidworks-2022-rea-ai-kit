@@ -1,0 +1,15 @@
+# 统一换行符，避免 Windows/Linux 差异导致整文件 diff
+* text=auto eol=lf
+
+*.py    text eol=lf
+*.md    text eol=lf
+*.json  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+
+# 二进制
+*.png   binary
+*.jpg   binary
+*.bmp   binary
+*.dll   binary
+*.chm   binary

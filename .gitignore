@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 导出与临时产物（不要进仓库）
+shots/
+*.bmp
+*.SLDPRT
+*.SLDASM
+*.SLDDRW
+*.sldprt
+*.sldasm
+*.slddrw
+*.swj
+*.log
+
+# 一次性迁移/探针脚本
+_migrate.py
+_probe*.py
+_di.py
+_enumtest.py
+_cmd_hits.txt
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 本地反编译产物（体积大、且可从 CHM 重建）
+chm-out/
+chm-api-en/
+chm-cmds/
+chm-const/

@@ -1,0 +1,99 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Syntax check (scripts + examples)
+        run: |
+          python -m compileall -q scripts examples
+
+      - name: data/*.json must be valid JSON
+        run: |
+          python - <<'PY'
+          import glob, json, sys
+          bad = False
+          for f in sorted(glob.glob("data/*.json")):
+              try:
+                  obj = json.load(open(f, encoding="utf-8"))
+                  n = len(obj) if isinstance(obj, (dict, list)) else 0
+                  print(f"OK   {f}  (top-level entries: {n})")
+              except Exception as exc:
+                  bad = True
+                  print(f"FAIL {f}: {exc}", file=sys.stderr)
+          sys.exit(1 if bad else 0)
+          PY
+
+      - name: enums.json shape
+        run: |
+          python - <<'PY'
+          import json
+          d = json.load(open("data/enums.json", encoding="utf-8"))
+          assert "enums" in d and "namesOnly" in d, "missing sections"
+          mode = d["enums"]["swViewDisplayMode_e"]
+          assert mode["swViewDisplayMode_HiddenLinesRemoved"] == 2
+          assert mode["swViewDisplayMode_ShadedWithEdges"] == 5
+          assert d["enums"]["swDocumentTypes_e"]["swDocPART"] == 1
+          print("enums.json shape OK:", d["_meta"]["enumsWithValues"], "enums with values")
+          PY
+
+      - name: No absolute user paths / machine fingerprints
+        run: |
+          python - <<'PY'
+          import glob, re, sys
+          # 只拦"真名"，放过占位符写法（C:\Users\<name>、D:\out\、Z:\nope\x）
+          BAD = re.compile(
+              r"[A-Za-z]:\\Users\\[^\\<\s]"          # C:\Users\<真名>
+              r"|/home/(?![<\s])"                     # /home/<真名>
+              r"|/Users/(?![<\s])"                    # /Users/<真名>
+              r"|Administrator|\\bMS-[0-9A-F]{4}\\b",  # 通用管理员账户 / 主板型号
+              re.I,
+          )
+          ALLOW_PREFIX = ("<SW_INSTALL>", "<REPO_ROOT>", "<PROJECT>")
+          files = [f for f in glob.glob("**/*.md", recursive=True) + glob.glob("**/*.py", recursive=True)
+                   if not f.startswith(".github/")]
+          hits = []
+          for f in files:
+              for i, line in enumerate(open(f, encoding="utf-8", errors="replace"), 1):
+                  if not BAD.search(line):
+                      continue
+                  if any(t in line for t in ALLOW_PREFIX):
+                      continue
+                  hits.append(f"{f}:{i}: {line.strip()[:120]}")
+          if hits:
+              print("\n".join(hits), file=sys.stderr)
+              print(f"\n{len(hits)} suspicious line(s)", file=sys.stderr)
+              sys.exit(1)
+          print("no absolute user paths found in", len(files), "text files")
+          PY
+
+      - name: Relative markdown links resolve
+        run: |
+          python - <<'PY'
+          import glob, os, re, sys
+          LINK = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+          bad = []
+          for f in glob.glob("**/*.md", recursive=True):
+              base = os.path.dirname(f)
+              for m in LINK.finditer(open(f, encoding="utf-8").read()):
+                  target = m.group(1).split("#")[0].strip()
+                  if not target or target.startswith(("http://", "https://", "mailto:")):
+                      continue
+                  if not os.path.exists(os.path.normpath(os.path.join(base, target))):
+                      bad.append(f"{f}: {target}")
+          if bad:
+              print("\n".join(bad), file=sys.stderr)
+              sys.exit(1)
+          print("all relative links resolve")
+          PY

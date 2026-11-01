@@ -1,0 +1,192 @@
+[
+ {
+  "key": "extrude",
+  "name": "拉伸",
+  "api": "IFeatureManager.FeatureExtrusion2",
+  "args": 23,
+  "slots": "D1=深度(m) | T1/T2=终止条件 | Sd=单向 | Merge/UseFeatScope/UseAutoSelect",
+  "criterion": "体积增量 = 轮廓面积 x D1",
+  "call": "fm.FeatureExtrusion2(True,False,False, 0,0, 0.020,0.010, False,False,False,False, 0.0174532925199433,0.0174532925199433, False,False,False,False, True,True,True, 0,0,False)",
+  "note": "调用前必须选中轮廓(ProfileFeature)，选基准面返回 None"
+ },
+ {
+  "key": "extrude3",
+  "name": "拉伸(新)",
+  "api": "IFeatureManager.FeatureExtrusion3",
+  "args": 23,
+  "slots": "同 Extrusion2，尾部 3 个 bool 控制薄壁/方向",
+  "criterion": "同上",
+  "call": "",
+  "note": "后期绑定偶发不可用，优先 Extrusion2"
+ },
+ {
+  "key": "cut",
+  "name": "切除",
+  "api": "IFeatureManager.FeatureCut4",
+  "args": 27,
+  "slots": "T1=1 即完全贯穿 | D1=深度 | NormalCut | UseFeatScope/UseAutoSelect",
+  "criterion": "体积减量 = 截面面积 x 深度",
+  "call": "fm.FeatureCut4(True,False,False, 1,0, 0,0, False,False,False,False, 0,0, False,False,False,False, False, True,True, False,False,False, False, 0,0,False)",
+  "note": "草图必须画在被切的那个面上；画在基准面上返回 None 且不去料"
+ },
+ {
+  "key": "revolve",
+  "name": "旋转",
+  "api": "IFeatureManager.FeatureRevolve2",
+  "args": 20,
+  "slots": "Dir1Angle=弧度(全周 6.283185307179586) | IsCut | IsSolid/IsThin",
+  "criterion": "体积 = 截面积 x 2π x 形心半径 (Pappus)",
+  "call": "fm.FeatureRevolve2(True,True,False,False,False,False, 0,0, 6.283185307179586,0, False,False,0,0, 0,0,0, True,True,True)",
+  "note": "轴必须是构造线(ISketchSegment.ConstructionGeometry=True)；半圆球不要再画与轴重合的闭合线"
+ },
+ {
+  "key": "linear_pattern",
+  "name": "线性阵列",
+  "api": "IFeatureManager.FeatureLinearPattern5",
+  "args": 22,
+  "slots": "实例数1, 间距1(m), 实例数2, 间距2(m) 在前 4 位；两个 \"\" 是方向参考名",
+  "criterion": "体积 = 单件 x 有效件数(跨边界的实例不计)",
+  "call": "fm.FeatureLinearPattern5(3, 0.025, 1, 0.0, False, False, \"\", \"\", False,False,False,False, True, False,False,False, False,False, 0.0,0.0, False, False)",
+  "note": "选特征 mark=4，选方向参考 mark=1"
+ },
+ {
+  "key": "circular_pattern",
+  "name": "圆周阵列",
+  "api": "IFeatureManager.FeatureCircularPattern4",
+  "args": 7,
+  "slots": "(Num, Spacing弧度, FlipDirection, DName, GeometryPattern, EqualSpacing, VaryInstance)",
+  "criterion": "体积 = 单件 x Num",
+  "call": "fm.FeatureCircularPattern4(6, 6.283185307179586, False, \"\", False, True, False)",
+  "note": "轴用圆柱面/棱边 mark=1，被阵列特征 mark=4"
+ },
+ {
+  "key": "fillet",
+  "name": "圆角",
+  "api": "IFeatureManager.FeatureFillet3",
+  "args": 14,
+  "slots": "R1=半径(m) | Ftyp | Options 位掩码必须含 2(UniformRadius)",
+  "criterion": "去料 = (1 - π/4) x r² x L",
+  "call": "fm.FeatureFillet3(2, 0.005, 0.0, 0.0, 0, 0, 0, None,None,None,None,None,None,None)",
+  "note": "Options=0 时 R1 不生效；棱边用 SelectByRay(TypeWanted=1) 选"
+ },
+ {
+  "key": "chamfer",
+  "name": "倒角",
+  "api": "IFeatureManager.InsertFeatureChamfer",
+  "args": 8,
+  "slots": "(Option, Type, Width, Angle, OtherDist, ...)，Type=1 角度距离",
+  "criterion": "去料 = 0.5 x w² x L",
+  "call": "fm.InsertFeatureChamfer(0, 1, 0.003, 0.7853981633974483, 0.003, 0.0, 0.0, 0.0)",
+  "note": "swChamferType_e: AngleDistance 1 / DistanceDistance 2 / Vertex 3 / EqualDistance 16"
+ },
+ {
+  "key": "shell",
+  "name": "抽壳",
+  "api": "IModelDoc2.InsertFeatureShell",
+  "args": 2,
+  "slots": "(Thickness, Outward)；不选面=闭合壳，选面=开口壳",
+  "criterion": "去料 = 内腔体积",
+  "call": "md.InsertFeatureShell(0.002, False)",
+  "note": "不在 IFeatureManager 上；多厚度走 IShellFeatureData"
+ },
+ {
+  "key": "hole_wizard",
+  "name": "孔(快捷)",
+  "api": "IFeatureManager.HoleWizard5",
+  "args": 27,
+  "slots": "第 6/7/8 位是 Diameter/Depth/Length 覆盖值；前 5 位 = 孔型/标准/紧固件/规格/终止条件",
+  "criterion": "体积减量 = π r² t(按 Toolbox 表取值)",
+  "call": "md.FeatureManager.HoleWizard5(2, 13, 356, \"M48\", 1, 0.0,0.0,0.0, *([0.0]*12), \"\", False, False, True, False, True, False)",
+  "note": "只选面(选中数=1)且不要预建草图；标准索引必须按名字查"
+ },
+ {
+  "key": "hole_routeb",
+  "name": "孔(可控)",
+  "api": "CreateDefinition(swFmHoleWzd=25) + InitializeHole",
+  "args": 1,
+  "slots": "InitializeHole(GenericHoleType, StdIndex, FastenerType, SSize, EndType) 5 参；之后写命名属性",
+  "criterion": "体积减量随命名属性线性变化",
+  "call": "fd = fm.CreateDefinition(25).QueryInterface(SW.IWizardHoleFeatureData2); fd.InitializeHole(0,13,376,\"M12\",1)",
+  "note": "CreateDefinition 返回无类型 _Dispatch，必须先 QI"
+ },
+ {
+  "key": "hole_routec",
+  "name": "孔(改已有)",
+  "api": "IFeature.GetDefinition + ModifyDefinition",
+  "args": 3,
+  "slots": "ModifyDefinition(fd, topDoc, comp)；改属性前必须 AccessSelections(topDoc, comp)",
+  "criterion": "修改后体积 = 新参数对应体积",
+  "call": "fd.AccessSelections(md, None); fd.CounterBoreDiameter = 0.024; feat.ModifyDefinition(fd, md, None)",
+  "note": "不 AccessSelections 时属性变了但几何不变"
+ },
+ {
+  "key": "mate",
+  "name": "配合",
+  "api": "IAssemblyDoc.AddMate5",
+  "args": 14,
+  "slots": "(Type, Align, Flip, Distance, ...)；返回 (status, IMate2)",
+  "criterion": "组件 GetXform() 平移量 = 期望位移",
+  "call": "st, mate = asm.AddMate5(5, 2, False, 0.010, 0,0,0,0,0,0,0, False, False, 0)",
+  "note": "GetMates() 本版本不存在，扫特征树找 MateGroup"
+ },
+ {
+  "key": "annotation",
+  "name": "工程图标注",
+  "api": "IDrawingDoc.InsertModelAnnotations",
+  "args": 4,
+  "slots": "(Option, Types, AllViews, DuplicateDims)，Types=8 尺寸",
+  "criterion": "注记数/显示尺寸数增加",
+  "call": "d.InsertModelAnnotations(0, 8, False, False)",
+  "note": "必须同时满足：视图被选中 + 模型已在会话中打开"
+ },
+ {
+  "key": "section",
+  "name": "剖视图",
+  "api": "IDrawingDoc.CreateSectionViewAt5",
+  "args": 7,
+  "slots": "(X,Y,Z, Label, Options, ExcludedComponents, SectionDepth)",
+  "criterion": "视图数 +1、视图名含标签",
+  "call": "d.MakeSectionLine(); d.CreateSectionViewAt5(0.10, 0.19, 0.0, \"A\", 0, None, 0)",
+  "note": "图纸层开草图 CreateLine 并选中后再调用；ActivateView 后 CreateLine 返回 None"
+ },
+ {
+  "key": "dimension",
+  "name": "尺寸驱动",
+  "api": "IModelDoc2.AddDimension2 + IDimension.SystemValue",
+  "args": 3,
+  "slots": "AddDimension2(x,y,z) 标注位置；SystemValue 单位米",
+  "criterion": "体积 = a x b x t",
+  "call": "dd = md.AddDimension2(0.05, 0.075, 0.0); dim = dd.GetDimension2(0); dim.SystemValue = 0.08",
+  "note": "切配置后 IDimension 的 RCW 缓存配置上下文，必须重新 Parameter() 再 QI"
+ },
+ {
+  "key": "save",
+  "name": "保存",
+  "api": "IModelDoc2.SaveAs4 / IModelDocExtension.SaveAs",
+  "args": 3,
+  "slots": "(Name, Version, Options[, ExportData])",
+  "criterion": "返回 [errors, warnings, ok] + 落盘大小",
+  "call": "err, warn, ok = md.SaveAs4(path, 0, 1)",
+  "note": "errors 粒度粗(只读也只报 1)，必须配合文件大小复核"
+ },
+ {
+  "key": "silent_open",
+  "name": "静默打开",
+  "api": "ISldWorks.GetOpenDocSpec + OpenDoc7",
+  "args": 1,
+  "slots": "spec.Silent / LightWeight / IgnoreHiddenComponents / ReadOnly",
+  "criterion": "0.99s 无弹窗",
+  "call": "spec = sw.GetOpenDocSpec(p).QueryInterface(SW.IDocumentSpecification); spec.Silent = True; doc = sw.OpenDoc7(spec)",
+  "note": "GetOpenDocSpec 必须重新赋值 QI，否则 0x80020006"
+ },
+ {
+  "key": "mass",
+  "name": "质量属性",
+  "api": "IModelDocExtension.GetMassProperties2",
+  "args": 2,
+  "slots": "(Accuracy, UseSelected)；返回 (status, 数组)",
+  "criterion": "数组索引 3=体积、4=表面积、5=质量",
+  "call": "st, arr = md.Extension.GetMassProperties2(1, False)",
+  "note": "数组顺序 [Xcm,Ycm,Zcm,Volume,Area,Mass,Ixx,...]"
+ }
+]
