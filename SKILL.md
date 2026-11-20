@@ -3,7 +3,7 @@ name: sw-com-reversed
 description: "SolidWorks 2022 COM 自动化的逆向实测结论：哪条通道能操作文档对象、每个特征方法的精确参数个数与顺序、官方 CHM 参数语义索引、会话日志里的真实调用形态、119 条必踩坑（R1~R119）、44 条可直接抄的配方（R1~R44）与量化验证判据。写或调试 SolidWorks API 脚本、VBA 宏、MCP/插件工具前先读本技能，避免重复试错。"
 metadata:
   category: engineering-cad
-  version: 2.26.0
+  version: 3.0.0
   verified_on: "SolidWorks Premium 2022 SP5.0 (30.5.0.0049) on Windows; Python 3.13.14 + comtypes 1.4.17"
   evidence: "REA 逆向 Interop 元数据 + 官方 CHM 反编译 + swxJRNL 会话日志 + 本机端到端实跑"
 ---
@@ -11,6 +11,7 @@ metadata:
 # SolidWorks COM 逆向实测
 > 本文既是**仓库入口**，也可以直接作为一份 Agent Skill 放进 `skills/` 目录使用。
 > 完整说明见 [`README.md`](README.md)；配套数据在 `data/`，可跑示例在 `examples/`。
+> 技能层在 [`skills/`](skills/README.md)：建模入口、设计策略、工程骨架、专利代理师四份 `SKILL.md`。
 > 全部结论实测于 **SolidWorks 2022 SP5.0 (30.5.0.0049)**。
 
 本文**不是**建模教程。它只回答三类问题：
@@ -175,6 +176,7 @@ R36 线稿附图（A4 无图框 / 单图单页 / 编号引线 / 图序与逐页 
 - `scripts/swe.py` — harness v2（连接/静默/新建三类文档/选面/草图/特征树/质量/包围盒/落盘：`connect / quiet / new_part / new_assembly / new_drawing / md2 / P / sketch_on_plane / select_face / feature_profile / real_features / segments / mass / mass2 / bodies / bodies_count / body_mass / bbox / save / export_step`）。
 - `scripts/preflight.py` — 环境自检（Python、comtypes、SW 版本、模板路径）。
 - `scripts/chm_index.py` — CHM → 索引。
+- `skills/` — **技能层**（4 个可加载的 `SKILL.md`）：`solidworks-2022-automation`（本文的入口版，`verified`）、`solidworks-design`（设计策略 + 17 章手册，`reference`）、`solidworks-automation`（工程骨架 + 自包含手册，`pilot`，上游以 2026 验收）、`patent-agent-cn`（中国专利代理师：撰写/盲审/答复 OA 的提示词与 20 项清单，`pilot`）。索引与缺口清单见 `skills/README.md`。
 
 ## 8. 可以继续补的方向（尚未实测）
 `Configurations` 与 `DesignTable`、`SetMaterialPropertyName2` 带材质质量、工程图公差与 `InsertModelAnnotations4`、批量导出与错误码 `swFileSaveError_e`、`ICommandManager` 自建工具栏、`PropertyManagerPage`（不建议自动化）。另：**两套 SolidWorks MCP 不能同挂一个实例**，否则表现为卡死。

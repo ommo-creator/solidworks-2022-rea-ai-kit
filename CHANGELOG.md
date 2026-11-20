@@ -2,6 +2,47 @@
 
 版本号规则：`<验证的 SW 主版本>.<内容修订>`。`2022.x` 表示全部结论在 SolidWorks 2022 上实测。
 
+## [2022.3.0] — 2026-11-20
+
+第三个版本：新增 **技能层 `skills/`**——把"事实库"包成 agent 能直接加载的 `SKILL.md`，
+并把建模之外的两件常做的事一并收进来：**设计审查**与**中国专利代理师的撰写/盲审/答复**。
+
+事实库（`docs/`）与入口（`skills/`）分离是刻意的：事实会长（119 条坑、44 条配方还在加），
+入口要短，因为入口每次对话都会被读进上下文。
+
+### 新增 · 技能层
+
+- [`skills/README.md`](skills/README.md) —— 技能索引、四级验证口径（`verified` / `pilot` /
+  `reference` / `not_implemented`）、**缺口清单**（钣金/焊件/Routing/FEA/GD&T/2023+ 版本差异
+  明确列为 `not_implemented`）、安装方式、数据边界
+- [`skills/solidworks-2022-automation/SKILL.md`](skills/solidworks-2022-automation/SKILL.md) ——
+  2022 实测路线入口：开工前三十秒自检、六条铁律、查表优先（签名/枚举/命令号/方法页/坑/配方）、
+  按任务找入口、交付前五项自检、版本闸门
+- [`skills/solidworks-design/SKILL.md`](skills/solidworks-design/SKILL.md) ——
+  设计策略入口（六步流程、七条设计规则、与本仓库事实库的接口），随附 17 章
+  [`references/design-manual.md`](skills/solidworks-design/references/design-manual.md)
+- [`skills/solidworks-automation/SKILL.md`](skills/solidworks-automation/SKILL.md) ——
+  工程骨架入口：单例复用、W-A-R 闭环断言、反幻觉熔断、能力分级、执行顺序与判据、
+  2022↔2026 版本闸门表，随附
+  [`references/automation-manual.md`](skills/solidworks-automation/references/automation-manual.md)
+- [`skills/patent-agent-cn/`](skills/patent-agent-cn/SKILL.md) —— **中国专利代理师**：
+  角色提示词的四要素与正反例、三条工作纪律（先分形式与实质 / 每条意见要落到位置 /
+  修改必须不超范围），三份可复用提示词（
+  [盲审](skills/patent-agent-cn/prompts/01-blind-review.md)、
+  [撰写](skills/patent-agent-cn/prompts/02-drafting.md)、
+  [答复 OA](skills/patent-agent-cn/prompts/03-oa-response.md)）与
+  [20 项审查清单](skills/patent-agent-cn/references/review-checklist.md)
+
+### 关键取舍
+
+- **上游 `solidworks-automation` 的 12 MB 代码不随仓库分发。** 它是独立项目（自带
+  `LICENSE` / `pyproject.toml` / `uv.lock`），验收目标是 2026；整包塞进一个"2022 实测"仓库
+  会制造两套互相矛盾的事实来源。仓库只留入口 + 版本闸门 + 随附手册。
+- **盲审提示词保留"盲"这个属性**：不告诉模型哪里有问题、不许猜、看不清写"无法判断"、
+  不写"建议补充实验数据"这类套话。改完重跑时也不要告知上轮改了什么，否则剩下的问题查不出来。
+- **技能层零案卷数据**：所有提示词用 `<CASE_DIR>`、`<DRAFT_PDF>`、`<FIGURE_LIST>`、
+  `<OA_PDF>` 占位符；没有说明书正文、权利要求原文、审查意见、案号、申请号、附图。
+
 ## [2022.2.0] — 2026-11-20
 
 第二个版本：把一轮 **403 组件整机批量改型**（径向卡匣 A13 → A14 改型）中暴露的问题固化。

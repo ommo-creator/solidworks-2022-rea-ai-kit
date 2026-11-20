@@ -85,6 +85,27 @@
 | [`scripts/gb9124_2019.py`](scripts/gb9124_2019.py) | GB/T 9124.1-2019 板式平焊法兰尺寸表（示例数据） | — |
 | [`examples/`](examples/) | 5 个可独立运行的脚本，每个都带"怎么算成功"的判据 | — |
 | [`troubleshooting/`](troubleshooting/) | **显示/剖切/线稿导出异常的真实诊断记录与方法** | — |
+| [`skills/`](skills/) | **技能层**：把上面的内容包成可加载的 `SKILL.md`（见下节） | 4 个技能 |
+
+### 技能层 `skills/`
+
+`docs/` 是事实库，`skills/` 是入口。每个子目录是一份 `SKILL.md`：什么时候加载、按什么顺序做、
+做到什么算完成、什么时候必须停下来问人。事实会长，入口要短。
+
+| 技能 | 管什么 | 验证等级 |
+|---|---|---|
+| [`skills/solidworks-2022-automation/`](skills/solidworks-2022-automation/SKILL.md) | 在 2022 上写/跑 COM 脚本：通道、签名、坑、配方、判据 | `verified` |
+| [`skills/solidworks-design/`](skills/solidworks-design/SKILL.md) | 动手之前：建模策略、参数化、设计审查、可制造性（附 17 章手册） | `reference` |
+| [`skills/solidworks-automation/`](skills/solidworks-automation/SKILL.md) | 工程骨架：会话复用、W-A-R 断言、能力分级、自审查、MCP | `pilot`（上游以 2026 验收） |
+| [`skills/patent-agent-cn/`](skills/patent-agent-cn/SKILL.md) | 中国专利代理师：撰写、独立盲审、答复审查意见（3 份提示词 + 20 项清单） | `pilot` |
+
+**校验口径**沿用上游 `capabilities.yaml`：`verified` / `pilot` / `reference` /
+`not_implemented`。后两者**不得无人值守交付**——"脚本跑完没报错"在 SolidWorks 上出了名地
+不等于"事做了"。缺口清单（钣金、焊件、Routing、FEA、GD&T、2023+ 版本差异）在
+[`skills/README.md`](skills/README.md)，那里写的是边界，不是待办。
+
+技能层**不含任何一次真实工作的原始数据**：没有模型、图纸、说明书正文、审查意见、案号、
+机器路径。提示词里的 `<CASE_DIR>` 这类占位符，用之前必须替换。
 
 ---
 
@@ -201,6 +222,7 @@ solidworks-2022-rea-ai-kit/
 ├── SKILL.md                    # AI 入口（先读这个）
 ├── README.md
 ├── docs/                       # 19 篇正文
+├── skills/                     # 技能层：4 个可加载的 SKILL.md + 2 份手册
 ├── data/                       # 4 个索引表 + 1 个枚举表
 ├── scripts/                    # swe.py / preflight.py / extract_enums.py / gb9124_2019.py
 ├── examples/                   # 5 个可独立运行的对照脚本
