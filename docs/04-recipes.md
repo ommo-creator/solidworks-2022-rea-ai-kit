@@ -740,3 +740,216 @@ fv.SetVisible(False, False)          # 关键：不要 EditDelete
 print(fv.GetVisible(), sec.GetVisible())   # 期望 False / True
 ```
 多图纸时 PDF 逐页导出不可靠（坑 97），线稿附图按"一图一文件"生成。
+
+---
+
+## R38 组件位姿：写入 + 读回 + 几何复核（16 元素布局）
+
+```python
+import math
+from array import array
+sw = swe.connect(); SW = swe.SW
+
+def open_doc(path, ro=True):
+    ds = sw.GetOpenDocSpec(path).QueryInterface(SW.IDocumentSpecification)
+    ds.Silent = True; ds.ReadOnly = ro; ds.LightWeight = False
+    ds.IgnoreHiddenComponents = False; ds.InteractiveAdvancedOpen = False
+    ds.AddToRecentDocumentList = False
+    d = sw.OpenDoc7(ds)
+    return d.QueryInterface(SW.IModelDoc2) if d else None
+
+def set_pose(mu, comp, R, t_m):
+    """R: 3×3（行给）、t_m: 平移（米）。布局 = [R 9 | t 3 | 1 | 0,0,0]"""
+    ad = [R[0][0], R[0][1], R[0][2],
+          R[1][0], R[1][1], R[1][2],
+          R[2][0], R[2][1], R[2][2],
+          t_m[0], t_m[1], t_m[2], 1.0, 0.0, 0.0, 0.0]
+    mt = mu.CreateTransform(array('d', ad)).QueryInterface(SW.IMathTransform)   # 必须 array('d')
+    try:
+        comp.Transform2 = mt
+    except Exception:
+        comp._IComponent2__com__set_Transform2(mt)
+    back = [float(v) for v in comp.GetTotalTransform(True).ArrayData]           # ① 读回
+    assert max(abs(back[i] - ad[i]) for i in range(12)) < 1e-9, back
+
+def rot_y(deg):
+    th = math.radians(deg); c, s = math.cos(th), math.sin(th)
+    return [[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]]
+```
+
+```python
+md = open_doc(ASM, ro=False); A = md.QueryInterface(SW.IAssemblyDoc)
+mu = sw.GetMathUtility().QueryInterface(SW.IMathUtility)
+c  = [x for x in A.GetComponents(True) if x.Name2.startswith('件A-')][0]
+set_pose(mu, c, rot_y(45.0), (1.2, 0.471, -0.35))
+md.ForceRebuild3(False)
+print(c.GetBox(False, False))        # ② 几何复核：包围盒/方位要跟着变
+```
+
+**判据**：① 读回 12 位逐位一致；② 重建后 `GetBox` / 方位真的变了。
+❌ 平移写进第 4 列不报错、位姿全错；❌ 用变换矩阵反推方位不可靠（见 `docs/19-assembly-scale.md` §19.1 / §19.9）。
+
+## R39 批量插入组件：内存前提 + 45 件预算
+
+```python
+BUDGET = 45                              # 单会话零件开数上限（实测：超出后 OpenDoc7 返回 None）
+plan = [('件A', (1.2, 0.0, 0.0)), ('件B', (0.0, 0.471, 0.35))]   # 零件路径 → 目标平移(米)
+
+sw.CloseAllDocuments(True)
+asm = swe.new_assembly(sw); A = asm.QueryInterface(SW.IAssemblyDoc)
+mu  = sw.GetMathUtility().QueryInterface(SW.IMathUtility)
+
+n = 0
+for path, t_m in plan:
+    p = open_doc(path, ro=True)                       # ① 先开进内存（否则 AddComponent5 静默 None）
+    assert p is not None, 'open fail: ' + path
+    c = A.AddComponent5(path, 0, '', False, '', 0.0, 0.0, 0.0)
+    if c is None:                                     # ② 名额可能已满
+        sw.CloseAllDocuments(True); asm = swe.new_assembly(sw); continue
+    set_pose(mu, c.QueryInterface(SW.IComponent2), [[1,0,0],[0,1,0],[0,0,1]], t_m)
+    sw.CloseDoc(p.GetTitle())                         # ③ 立刻关（少括号 = 文件被锁）
+    n += 1
+    if n % BUDGET == 0:
+        asm.SaveAs2(TMP, 0, True, True); sw.CloseAllDocuments(True)   # ④ 断点存盘 + 新会话
+        asm = open_doc(TMP, ro=False); A = asm.QueryInterface(SW.IAssemblyDoc)
+print('inserted', n)
+```
+
+**判据**：`len(A.GetComponents(True)) == 计划数`；每个组件读回位姿等于计划值。
+
+## R40 批量删件：`SelectByID2 + EditDelete`（每批 25）
+
+```python
+md = open_doc(ASM, ro=False); ext = md.Extension
+names = [c.Name2 for c in md.QueryInterface(SW.IAssemblyDoc).GetComponents(True)
+         if c.Name2.startswith(('N64_', 'N65_'))]
+BATCH = 25
+for i in range(0, len(names), BATCH):
+    md.ClearSelection2(True)
+    for nm in names[i:i+BATCH]:
+        ext.SelectByID2(nm, 'COMPONENT', 0, 0, 0, True, 0, None, 0)   # 第 8 参 Callout=None
+    k = md.SelectionManager.GetSelectedObjectCount2(-1)              # 返回值不可信，数选中
+    if k:
+        md.EditDelete()
+    print(i, 'selected', k)
+md.ForceRebuild3(False)
+```
+
+**判据**：删后组件数 = 原数 − 目标数；名字不再出现在 `GetComponents(True)`。
+❌ `IComponent2.Select4` 实测 472 件删 0 个。
+
+## R41 保存三件套：静默另存 + 原子替换 + 重开校验
+
+```python
+import os
+def save_verified(md, final, expect_comps=None, expect_vol=None):
+    tmp = final + '.tmp'
+    if os.path.exists(tmp): os.remove(tmp)
+    r = md.SaveAs2(tmp, 0, True, True)                 # 静默、另存；正常返回 0
+    sw.CloseDoc(md.GetTitle())                         # 关键：关掉才能替换
+    size = os.path.getsize(tmp)
+    assert size > 100_000, 'suspicious size %d' % size  # ① 字节数
+    os.replace(tmp, final)                              # ② 原子替换
+    d2 = open_doc(final, ro=True); assert d2 is not None # ③ 重开
+    n  = len(d2.QueryInterface(SW.IAssemblyDoc).GetComponents(True) or [])
+    v  = swe.mass2(d2)[3]                               # ④ 体积(m³)
+    ok = (expect_comps is None or n == expect_comps) and \
+         (expect_vol  is None or abs(v - expect_vol) < 1e-6)
+    sw.CloseDoc(d2.GetTitle())
+    assert ok, (n, v)
+    return size
+```
+
+**判据**：四项全过。⚠️ 文件被别的进程占用时 `SaveAs` 返回 `True` 而盘上不变——所以必须重量字节数。
+❌ 别用 `md.Save()`：会弹「另存为」模态框永久阻塞。
+
+## R42 全装配干涉：开关 + 体积 + 组件名
+
+```python
+md = open_doc(ASM, ro=True)
+md.ForceRebuild3(False)                                 # ① 先重建，否则读数不可信
+A = md.QueryInterface(SW.IAssemblyDoc)
+idm = A.InterferenceDetectionManager
+idm.TreatCoincidenceAsInterference = False               # 零体积贴合不算
+idm.IncludeMultibodyPartInterferences = False
+idm.TreatSubAssembliesAsComponents = False
+idm.ShowIgnoredInterferences = False
+idm.IgnoreHiddenBodies = True
+
+print('pairs =', idm.GetInterferenceCount())
+rows = []
+for it0 in (idm.GetInterferences() or []):
+    it = it0.QueryInterface(SW.IInterference)
+    rows.append((round(it.Volume * 1e9, 1),                   # Volume 是 m³
+                 [c.QueryInterface(SW.IComponent2).Name2 for c in (it.Components or [])]))
+for v, comps in sorted(rows, reverse=True)[:40]:
+    print('%12.1f mm3  %s' % (v, ' × '.join(comps)))
+```
+
+实测：403 组件全装配 ≈ **2.7 s**。
+**判据**：不只报"对数"，要按体积排序看前 N 对，并回答"重叠落在哪个面上"。
+❌ "主要干涉已清零"这类汇总句会漏掉真实互穿（实测漏过 `2.82e6 mm³ × 8 对`）。
+
+## R43 装配级半剖：临时副本上切掉半个空间
+
+```python
+import shutil
+work = os.path.join(TMPDIR, 'sec_work.SLDASM')
+shutil.copy2(ASM, work)                                  # 永远别切原文件
+md = open_doc(work, ro=False); ext = md.Extension
+
+ext.SelectByID2('右视基准面', 'PLANE', 0, 0, 0, False, 0, None, 0)
+md.InsertSketch(True)
+sk = md.SketchManager
+for (x1, y1), (x2, y2) in [((-3,-3),(3,-3)), ((3,-3),(3,3)), ((3,3),(-3,3)), ((-3,3),(-3,-3))]:
+    sk.CreateLine(x1, y1, 0.0, x2, y2, 0.0)               # 3 m 见方，一次切穿全部零件
+md.ClearSelection2(True)
+feat = md.FeatureManager.FeatureCut4(
+    True, False, True,            # Sd, Flip, Dir
+    0, 0, 3.0, 0.0,               # T1,T2 = 0 盲切；D1 = 3.0 m
+    False, False, False, False,   # Dchk1..Ddir2
+    0.0, 0.0,                     # Dang1, Dang2
+    False, False, False, False,   # OffsetReverse1/2, TranslateSurface1/2
+    False,                        # NormalCut
+    True, True,                   # UseFeatScope, UseAutoSelect
+    True, True, True,             # AssemblyFeatureScope, AutoSelectComponents, PropagateFeatureToParts
+    0.0, 0.0, False, False)
+assert feat is not None
+sw.CloseDoc(md.GetTitle())
+```
+
+**判据**：特征名出现、所有零件的剖切面同时可见；副本切坏不影响本体。
+❌ `CreateSectionViewData().FirstPlane` 赋值本机报 `COMError(-2147352570,'未知名称')`，3D 剖视本条不提。
+
+## R44 盲切让位槽：偏移面 + 纯直线草图 + `SetAddToDB` + `FeatureCut4`
+
+```python
+md = open_doc(PART, ro=False); fm = md.FeatureManager
+
+md.ClearSelection2(True)
+md.Extension.SelectByID2('上视基准面', 'PLANE', 0, 0, 0, False, 0, None, 0)
+pl = fm.InsertRefPlane(8, y0 / 1000.0, 0, 0.0, 0, 0.0)   # (int,double,int,double,int,double)
+assert pl is not None
+
+md.ClearSelection2(True); md.InsertSketch(True)
+sk = md.SketchManager
+md.SetAddToDB(True)                                   # ① 已有实体时必须关掉自动推断
+cx, cy = r * math.sin(az) / 1000.0, r * math.cos(az) / 1000.0   # 上视草图 y = −模型 Z
+for (x1, y1), (x2, y2) in poly:                        # ② 只用直线，别用 CreateArc
+    sk.CreateLine(cx + x1, cy + y1, 0.0, cx + x2, cy + y2, 0.0)
+md.SetAddToDB(False)
+md.ClearSelection2(True)
+
+feat = fm.FeatureCut4(
+    True, False, True,            # Sd, Flip=False, Dir=True → 朝 +Y 切
+    0, 0, dep / 1000.0, 0.0,      # T1=T2=0 盲切（写 1 = 完全贯穿，会切掉整件）
+    False, False, False, False, 0.0, 0.0,
+    False, False, False, False, False,
+    True, True, False, False, False, 0.0, 0.0, False, False)
+assert feat is not None
+v = swe.mass2(md)[3]
+assert abs(v - (v0 - dV_expect)) < abs(dV_expect) * 0.01   # ③ 体积与解析值对账
+```
+
+**判据**：`ΔV` = 解析体积（实测某壳体 `−0.03468277 m³`、某环 `−0.02194942 m³`）。
+要"保住装配引用与配合"：覆盖同名零件文件 → `EditRebuild3` → `Save`，**不要**删组件重插。

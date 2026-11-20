@@ -57,8 +57,8 @@
 | [`SKILL.md`](SKILL.md) | **AI 入口**：通道矩阵、六条铁律、签名速查、坑清单压缩版、配方表 | 176 行 |
 | [`docs/01-channel-and-rules.md`](docs/01-channel-and-rules.md) | 通道矩阵 + 六条铁律（哪条路能走，为什么） | — |
 | [`docs/02-signatures.md`](docs/02-signatures.md) | 精确签名：实参个数、`[out]` 位置、枚举值 | — |
-| [`docs/03-pitfalls.md`](docs/03-pitfalls.md) | **完整坑清单**（近 100 条），每条含现象、原因、判据 | 82 KB / 783 行 |
-| [`docs/04-recipes.md`](docs/04-recipes.md) | 可直接抄的配方 R1–R36（建模/装配/工程图/剖视/导出） | 38 KB / 600 行 |
+| [`docs/03-pitfalls.md`](docs/03-pitfalls.md) | **完整坑清单**（119 条），每条含现象、原因、判据 | 92 KB / 1323 行 |
+| [`docs/04-recipes.md`](docs/04-recipes.md) | 可直接抄的配方 R1–R44（建模/装配/工程图/剖视/导出/批量改型） | 47 KB / 955 行 |
 | [`docs/05-sections.md`](docs/05-sections.md) | 剖视图：3D 剖切与 2D 工程图剖视两条路 | — |
 | [`docs/06-line-art-figures.md`](docs/06-line-art-figures.md) | 纯线稿附图：A4 无图框、单图单页、编号引线、图序 | — |
 | [`docs/07-silence.md`](docs/07-silence.md) | 静默打开：25 个对话框抑制开关与 `Silent` 配方 | — |
@@ -73,6 +73,7 @@
 | [`docs/16-kernel.md`](docs/16-kernel.md) | 内核（Parasolid）相关：容差、无效几何、干涉 | — |
 | [`docs/17-motion.md`](docs/17-motion.md) | 运动算例 COM 面（`IMotionStudy*`） | — |
 | [`docs/18-ui-strings.md`](docs/18-ui-strings.md) | 中英文界面字符串差异（别硬编码 `草图1`） | — |
+| [`docs/19-assembly-scale.md`](docs/19-assembly-scale.md) | **大装配批量改型**：位姿矩阵、配合求解、批量删件、保存证据链、崩溃/干涉 | 15 KB / 264 行 |
 | [`data/commands.json`](data/commands.json) | **2,164 个命令号** → 菜单路径（`RunCommand` 用） | 543 KB |
 | [`data/docs-index.json`](data/docs-index.json) | **12,127 个方法页**索引 | 6.8 MB |
 | [`data/examples-index.json`](data/examples-index.json) | 官方示例索引（C#/VB/C++ 正文片段） | 5.2 MB |
@@ -199,7 +200,7 @@ docs["IFeatureManager~FeatureExtrusion2.html"]     # -> 参数名、类型、官
 solidworks-2022-rea-ai-kit/
 ├── SKILL.md                    # AI 入口（先读这个）
 ├── README.md
-├── docs/                       # 18 篇正文
+├── docs/                       # 19 篇正文
 ├── data/                       # 4 个索引表 + 1 个枚举表
 ├── scripts/                    # swe.py / preflight.py / extract_enums.py / gb9124_2019.py
 ├── examples/                   # 5 个可独立运行的对照脚本

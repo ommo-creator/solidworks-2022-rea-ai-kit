@@ -1,6 +1,6 @@
 ---
 name: sw-com-reversed
-description: "SolidWorks 2022 COM 自动化的逆向实测结论：哪条通道能操作文档对象、每个特征方法的精确参数个数与顺序、官方 CHM 参数语义索引、会话日志里的真实调用形态、98 条必踩坑（R1~R34）与量化验证判据。写或调试 SolidWorks API 脚本、VBA 宏、MCP/插件工具前先读本技能，避免重复试错。"
+description: "SolidWorks 2022 COM 自动化的逆向实测结论：哪条通道能操作文档对象、每个特征方法的精确参数个数与顺序、官方 CHM 参数语义索引、会话日志里的真实调用形态、119 条必踩坑（R1~R119）、44 条可直接抄的配方（R1~R44）与量化验证判据。写或调试 SolidWorks API 脚本、VBA 宏、MCP/插件工具前先读本技能，避免重复试错。"
 metadata:
   category: engineering-cad
   version: 2.26.0
@@ -65,9 +65,7 @@ Python 侧前置补丁（comtypes 老坑）：`comtypes` 的类型库可能缺 `
 | `SelectByRay` 的 `TypeWanted` | — | `1` = 棱边，`2` = 面；射线半径 0.0004 才打得到棱边 |
 **参数个数不符的典型报错**：VBA 后期绑定 `"参数数目不对"` / `"无效参数"`；comtypes `TypeError: call takes exactly N arguments`。审计旧宏时先数参数。
 
-## 4. 坑清单（压缩版，全文见 `docs/03-pitfalls.md`（77 条）
-- R30 读 BOM 表：见 `docs/04-recipes.md`
-- ~~`docs/03-pitfalls.md`~~）
+## 4. 坑清单（压缩版，全文见 `docs/03-pitfalls.md`，119 条）
 1. 单位米/弧度；`GetPartBox` 毫米。
 2. PS 不能操作文档对象（见 §1）。
 3. `NewDocument` 模板陷阱 → `NewPart`。
@@ -91,6 +89,19 @@ Python 侧前置补丁（comtypes 老坑）：`comtypes` 的类型库可能缺 `
 18. `SelectionManager.GetSelectedObjectType3` 恒返回 `0`（棱边/面/草图线段都一样），**不能用它判类型**；只认 `GetSelectedObjectCount2(-1) >= 1`，再用体积证明。
 19. 工程图注记要同时满足两条：① 用 **4 参旧版** `InsertModelAnnotations(0, 8, False, False)`（`…3` 返回 `None`、`…2` 返回 `True`，两个都不做事）；② 视图引用的**模型必须已在会话里 `OpenDoc6` 打开**，否则同样返回 `True` 而注记恒 0。用 `ActivateView` 替代选中视图只会得到 1 注记 0 尺寸。
 20. `IDimension.Value` 是**文档单位（毫米）**，`IDimension.SystemValue` 是**米**；同一尺寸 `Value=100` 对应 `SystemValue=0.1`，读标注时别混用。
+
+### 大装配批量改型（全文见 `docs/19-assembly-scale.md`）
+
+21. **位姿矩阵**：`CreateTransform` 传 `array('d', 16 个 float)` = `[R 9 | t 3(米) | 1 | 0,0,0]`；返回 `_Dispatch` 必须 `QueryInterface(IMathTransform)`；写完**读回比对**，位姿正确性再靠 `GetBox` 复核。矩阵第一列**不能**反推方位（实测 112°/114° 而几何真值都是 113°）。
+22. **旋转符号会反**：对件加 `+2°` 实测变成 `−2°`；装配绕 Y 转 θ 后件在世界的方位 = 件自身方位 `− θ`。每类变换先做一次符号标定，再批量写。
+23. **`AddComponent5` 三前提**：零件已在内存（先 `OpenDoc7`）、单会话 ≤45 件、返回的是裸 `_Dispatch`；每件用完立刻 `CloseDoc`，超限后 `OpenDoc7` 会返回 `None`。
+24. **`AddMate5` 只在活动文档生效**：先 `ActivateDoc3(title,False,0,0)` 再取 `ActiveDoc`；`ErrorStatus≠0` 不等于失败，看重建后几何有没有被搬动。
+25. **短行程别加距离限位**：0~4 mm 行程的"距离限位"会让求解器把零件甩到 2.1~2.2 m 外，且**删配合不恢复原位置**（只能按基线逐个 `Transform2` 找回）。行程由几何（导向副 + 挡圈 + 装配高）保证。
+26. **删件**：`IComponent2.Select4` 实测 `0/472`；用 `Extension.SelectByID2(名称,"COMPONENT",0,0,0,True,0,None,0)` + `EditDelete`，第 8 参必须 `None`，每批 25 件，选中数用 `GetSelectedObjectCount2(-1)` 数（返回值不可信）。
+27. **保存**：`Save()` 会弹「另存为」模态框永久阻塞 → `SaveAs2(tmp,0,True,True)` + `os.replace`；文件被占用时 `SaveAs` **返回 `True` 而盘上不变** → 判据 = 字节数 + 重开 + 体积回读。
+28. **进程消失**（`-2147023170` RPC 失败 / `-2147417848` 客户端断开 / `-2147417851` 服务器意外）：先看 `%TEMP%\swxJRNL.swj` 栈；长循环开/关文档时 FeatureManager 树异步刷新撞已关闭文档是主因 → 每会话 ≤45 件、每件 `CloseDoc`、断点存 JSON、批间重启 SW。
+29. **全装配干涉**：`InterferenceDetectionManager`（403 组件 2.7 s），`it.Volume` 是 m³；"主要干涉已清零"这类汇总句会漏真实互穿（实测漏过 `2.82e6 mm³ × 8 对`）→ 按体积排序逐对看，并回答"重叠落在哪个面上"。
+30. **开审查前冻结写入**：审查中途文件被改写，已测数据整批作废。
 
 ## 5. 配方（可直接抄，见 `docs/04-recipes.md`）
 | 编号 | 内容 | 现象级判据 |
@@ -131,19 +142,32 @@ Python 侧前置补丁（comtypes 老坑）：`comtypes` 的类型库可能缺 `
 
 R36 线稿附图（A4 无图框 / 单图单页 / 编号引线 / 图序与逐页 PDF）
 
+**批量改型（`docs/19-assembly-scale.md`）**
+
+| 编号 | 内容 | 现象级判据 |
+|---|---|---|
+| R38 | 组件位姿：`CreateTransform(array('d',16))` → QI → `Transform2` | 读回 12 位 <1e-9；`GetBox` 跟着变 |
+| R39 | 批量插入：`open_doc` → `AddComponent5` → `set_pose` → `CloseDoc`（`BUDGET=45`） | 组件数 = 计划数；断点可续 |
+| R40 | 批量删件：`SelectByID2(…,'COMPONENT',…)` + `EditDelete`（批 25） | 组件数 = 原数 − 目标数 |
+| R41 | 保存三件套：`SaveAs2(tmp,0,True,True)` → `CloseDoc` → `os.replace` → 重开 | 字节数 >100 KB + 体积 <1e-6 |
+| R42 | 全装配干涉：5 个开关 + `Volume*1e9` + `Components` | 403 组件 2.7 s，逐对看体积 |
+| R43 | 装配级半剖：临时副本 + 27 参 `FeatureCut4`（三个 True） | 所有零件的剖切面同时可见 |
+| R44 | 盲切让位槽：`InsertRefPlane(8,…)` + `SetAddToDB(True)` + 纯直线 + `T1=T2=0` | `ΔV` 与解析体积逐位对 |
+
 ## 7. 文件
 - `docs/17-motion.md` — Motion 算例：独立 interop 程序集、`IMotionStudyManager`/`IMotionStudy` 全成员、实测数字、驱动特征需预选。
 - `docs/16-kernel.md` — 几何内核身份（Parasolid 33.01.260 / ACIS 20171.0.2）与 `IModeler` 135 成员、造体封送限制。
 - `docs/15-gui-map.md` — 2,164 个 GUI 命令 vs API 成员的覆盖度对照（447 条弱映射）。
-- `docs/03-pitfalls.md` — 76 条坑的报错原文与修法。
+- `docs/03-pitfalls.md` — 119 条坑的报错原文与修法。
 - `docs/02-signatures.md` — 方法/枚举完整对照。
 - `docs/13-api-docs.md` — 34 个建模主链方法的**官方参数说明**（CHM 原文，含每个 bool 的含义）。
 - `docs/14-chm-decompile.md` — 怎么把 31MB 的 `sldworksapi.chm` 变成可检索索引；`swxJRNL.swj` 日志怎么读。
-- `docs/04-recipes.md` — R1~R29 可运行片段（R28 国标法兰族、R29 法兰总装）（R8 静默、R9 剖视的完整版另见 silence.md、sections.md）。
+- `docs/04-recipes.md` — R1~R44 可运行片段（R28 国标法兰族、R29 法兰总装、R38–R44 装配批量改型）（R8 静默、R9 剖视的完整版另见 silence.md、sections.md）。
 - `docs/12-commands.md` — **命令面**：2,164 条 `swCommands_e` 命令（2,154 条带数值 ID）+ 菜单路径，按 31 类分组。
 - `docs/08-hole-wizard.md` — **孔向导**：`Value1..Value12` 的真实身份、`IWizardHoleFeatureData2` 命名属性全表、三条造孔路线、四类孔实测表、7 条坑。
 - `docs/05-sections.md` — **剖视图/截面/读现有模型**：5 个 `CreateSectionViewAt*` 重载的精确参数、`IDrSection` 读回项、质量/包围盒/特征树/工程图读取配方。
 - `docs/18-ui-strings.md` — **中文界面词汇实测表**（文档名/特征名/基准面名/必跳过的固定文件夹），并记录 `slduiu.dll` 明文扫描不可行的结论。
+- `docs/19-assembly-scale.md` — **大装配批量改型**：位姿矩阵 16 元素布局与读回复核、`AddComponent5` 三前提、`AddMate5` 活动文档与距离限位事故、批量删件通道、保存证据链、崩溃三类 HRESULT 与 `swxJRNL.swj` 栈、全装配干涉、装配级半剖、复测纪律。
 - `data/docs-index.json` — 12,127 个方法的参数/说明（6.6 MB，插件 `sw_api_doc` 直接查）。
 - `data/examples-index.json` — 2,828 个官方示例（VB6/C#/VBNET）。
 - `data/commands.json` — 命令面全量表（2,164 条，含 ID/菜单路径）。

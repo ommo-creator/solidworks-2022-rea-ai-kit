@@ -1180,3 +1180,144 @@ v.ScaleDecimal = scale
 
 `dd.Extension` → `AttributeError: Extension`；`dd.CloseDoc()` / `md2.CloseDoc()` → `AttributeError: CloseDoc`。
 正确写法：`md2 = dd.QueryInterface(SW.IModelDoc2)`，`ext = md2.Extension` 调 `ext.SaveAs(...)`；关文档用 `sw.CloseDoc(str(P(md2,'GetTitle')))`。
+
+---
+
+## 99. 文档里已有实体时新建草图会被"自动推断"吸附
+
+**现象**：一个已有实体的零件上，用面草图切 64 个均布孔，实测只成 **61 个**（坏的是第 17/48/49 个），切除体积偏差 `−4.2%`，还多出一堆杂圆柱面。
+**根因**：草图点/线会被推理到既有实体的边、中点、象限点上（"自动推断"），个别圆被吸到别的面上。
+**修法**：`md.SetAddToDB(True)` 包住整段画线/画圆，画完 `md.SetAddToDB(False)`。
+**判据**：孔数、`ΔV` 与解析值逐位对；否则不要看"特征建成了"就收工。
+
+## 100. `GetFaces()` / `GetBodies2()` 的元素是裸 `POINTER(IDispatch)`
+
+**现象**：遍历 `md.GetFaces()` 做面积/三角面统计，结果全 0 或空，**不报错**。
+**根因**：comtypes 从 `SAFEARRAY` 取出的元素没有类型信息，是裸 `POINTER(IDispatch)`；直接调 `GetTessTriangles` 走 IDispatch 失败，被 `except` 吞掉。
+**修法**：逐个 `f.QueryInterface(SWT.IFace2)`；体同理 `b.QueryInterface(SWT.IBody2)`（`IPartDoc.GetBodies2` 也要先 QI `IPartDoc`）。
+**判据**：先打印 `len(faces)`，再打印第一个块的三角面数；两处都非 0 才算通。
+
+## 101. `ISurface.IsPlane` 是属性不是方法
+
+**现象**：`if surf.IsPlane(): ...` 抛 `TypeError: 'bool' object is not callable`（被 `except` 吞掉），"平面/曲面"分类永远全 0。
+**修法**：`if surf.IsPlane:`。同类还有 `IsCone` / `IsCylinder` / `IsSphere` / `IsTorus`。
+**判据**：分类计数之和 = 面总数。
+
+## 102. `SW.CloseDoc(doc.GetTitle)` 少一对括号 → 文件永久被锁
+
+**现象**：脚本跑完，保存同名零件时报 `PermissionError: [Errno 5]`，或者 `SaveAs` 返回 `True` 而盘上不变。
+**根因**：把**方法对象**传给了 `CloseDoc`，文档根本没关（SW 侧仍持有文件锁）。
+**修法**：`SW.CloseDoc(doc.GetTitle())`；关完 `SW.GetDocuments()` 复核标题已不在列表。
+**判据**：`GetDocuments()` 里没有该标题 + 目标文件可被 `os.remove`。
+
+## 103. `FeatureCut4` 的 `T1/T2 = 1` 是"完全贯穿"，当盲切用会切掉整件
+
+**现象**：本想切 10 mm 深，结果一次切掉零件 **88%**（实测把一只压靴的弹簧腔一刀贯穿）。
+**根因**：第 4/5 参是 `T1/T2`（`swEndConditions_e`），`1 = ThroughAll`；"盲切"必须 `T1=T2=0` 且用 `D1` 给深度（米）。
+**修法**：盲切 `(…, 0, 0, depth_m, 0.0, …)`；贯穿才用 `(…, 1, 0, 0.0, 0.0, …)`。
+**判据**：`ΔV ≈ 解析体积`，且 `nBody` 不变；偏大一个数量级基本就是贯穿了。
+
+## 104. 偏移基准面的 u/v 基向量不能假设（矩形会被投影成一条线）
+
+**现象**：在 `z=z0` 的偏移面上画矩形做切除，切出来是"一条线"，`ΔV=0` 或几何诡异。
+**根因**：`CreatePlaneAtOffset3` 沿**法向**偏移，新面的局部 u/v 取决于父面基向量的传递；
+`(ad[0],ad[3],ad[6])` 这种写法只在"Y 向偏移面"上成立，换成 Z 向就退化成 `v≡0`。
+**修法**：偏移后先读 `IRefPlane.Transform.ArrayData`，用 `[0..2]` 与 `[3..5]` 作为 u/v 实际基向量做投影；
+或者换一个已知基向量的父面（例如始终从同一张基准面偏）。
+**判据**：草图两点的世界距离 = 你想要的边长（先量再说）。
+
+## 105. 环带切除要画"环"，画一个圆会把轴切断
+
+**现象**：想在杆上切一个环形台肩，画一个圆做贯穿切 → 杆被切断，`nBody` 从 1 变 4。
+**根因**：圆剖面切的是"圆内全部材料"，不是"环带"。
+**修法**：在同轴位置画两个圆（内径 = 要保留的半径，外径 = 槽外径），一次切除得到环带。
+**判据**：`nBody` 不变（仍为 1）+ `ΔV = π(R²−r²)·h`。
+
+## 106. `FeatureRevolve2` 的两类"恒返 None"
+
+1. **细薄窄槽 × 多特征件**：在已有十几条特征的件上切 `0.11 mm` 宽整周窄槽 → 返回 `None`、`ΔV=0`；
+   同样 `0.12 mm` 槽在"只有一段回转"的新件上能切（`w=0.2 → ΔV=−1.19e-6`）。→ 别硬刚，改成独立小件（节流套）或走切除。
+2. **球带轮廓**：用 `FeatureRevolve2(±12°)` 生成球带（垫片/衬块）恒返 `None`。→ 改"偏移面 + `FeatureCut4` 环带"。
+
+**判据**：返回 `None` 时立刻读 `ΔV` 与 `nBody`，不要继续往下跑。
+
+## 107. 回转轮廓里出现与轴共线的冗余段 → 回转返回 `None`
+
+**现象**：18 点折线做回转剖面，严格共线的中间点没删 → 特征失败。
+**修法**：共线段只保留两个端点；与轴重合的直线必须画成**构造线**（否则得到半个实体）。
+**判据**：体积与分段解析和一致。
+
+## 108. `import` 一个脚本会执行它的 `main()`
+
+**现象**：`import x136_flange as X` 之后零件被改了两次（`x136` 没有 `__main__` 保护）。
+**修法**：要么给脚本加 `if __name__ == '__main__':`，要么 `runpy`/`exec` 前先看模块尾部；临时复用只抄函数。
+**判据**：`import` 前后文件的 `GetPathName` 修改时间不变。
+
+## 109. 单位四联表：这四种读数的单位都不同
+
+| 读数 | 单位 | 换算 |
+|---|---|---|
+| `IBody2.GetBodyBox()` | **米** | ×1000 → mm |
+| `IPartDoc.GetPartBox()` | **毫米** | — |
+| `IFace2.GetArea()` | **m²** | ×1e6 → mm² |
+| `IBody2.GetMassProperties(1.0)[3]` | **m³** | ×1e9 → mm³ |
+
+**教训**：漏了 `×1e9` 会让"体积变化"报成 `−100%`，看着像"件被删光了"。
+
+## 110. 文档里留着一张没退出的草图 → `-2147417851 '服务器出现意外情况'` 全线报错
+
+**现象**：`NewDocument` 和 `CreateLine` 同时报 `COMError(-2147417851,'服务器出现意外情况')`，换脚本也一样。
+**根因**：活动文档里有一张**没退出的草图**（当时活动文档是另一个"零件42"）。
+**修法**：`SW.CloseAllDocuments(True)`，然后一切恢复正常；长脚本每次进入新文档前先确认 `md.SketchManager.ActiveSketch is None`。
+
+## 111. 长循环"开文档/关文档"会让 SolidWorks 进程消失
+
+**现象**：跑 30–60 分钟后进程没了，Python 端 `COMError(-2147023170,'远程过程调用失败。')`；Windows 应用日志**没有**崩溃记录。
+**真因**（`%TEMP%\swxJRNL.swj` 栈）：`uiTreeCtrlView_c::OnInitialBkMdComptUpdate` ← FeatureManager 特征树在长循环中**异步刷新**，撞上刚被关闭的文档 → 访问违例。
+**修法**：每会话 **≤45 个零件**、每件处理完**立刻 `CloseDoc`**、每件写 json 断点、批间重启 SW 并等 65–90 s。
+
+## 112. `AddComponent5` 要求零件**已在内存**；开太多件后 `OpenDoc7` 开始返回 `None`
+
+**现象**：`AddComponent5(path, …)` 返回 `None`（无异常），装配里什么也没有。
+**根因**：目标零件没被打开过；另外累计打开约 **45 个零件**后，`OpenDoc7` 开始静默返回 `None`。
+**修法**：先 `OpenDoc6/7` 拿到零件再插；用完 `SW.CloseDoc(title)`；超过 40 个就分批。
+
+## 113. `AddMate5` 只在目标装配是**活动文档**时才真正建配合
+
+**现象**：`AddMate5` 返回一个 `IMate2` 指针，`ErrorStatus≠0`，但特征树里没有配合，装配也没被约束。
+**修法**：`SW.ActivateDoc3(title, False, 0, 0)` → 重新取 `SW.ActiveDoc` → `QueryInterface(IAssemblyDoc)` 再调。
+**判据**：`MateGroup` 子特征数 +1，且重建后几何**没有**被搬动（原位数不变）。
+
+## 114. 距离限位会把件甩到 2 米外，而且删掉配合**不回滚**
+
+**现象**：在两张**法向相反**的面之间加"距离限位 43~47 mm"，`Flip=False/True` 都解不出，求解器把件甩到 `2.1~2.2 m` 外；`EditDelete` 删配合后位移仍留在文件里。
+**修法**：0~4 mm 短行程不用自动距离限位，用几何（导向副 + 挡圈 + 装配高）保证；已经甩飞的按基线逐件 `Transform2` 恢复。
+**判据**：恢复后逐件与基线 `ArrayData` 比对，最大偏差 `0.0000 mm`。
+
+## 115. `IComponent2.Select4` 对装配组件不可靠（472 件删 0 个）
+
+**修法**：`md.Extension.SelectByID2(name, 'COMPONENT', 0, 0, 0, append, 0, None, 0)`（第 8 参 `Callout` 必须 `None`）+ `md.EditDelete()`，每批 25 个。
+**判据**：`SelectionManager.GetSelectedObjectCount2(-1)`（返回值 `False` 也可能已选中，不能靠它判断）。
+
+## 116. `md.Save()` 会弹模态框永久阻塞；`SaveAs` 对占用文件返回 `True` 但盘上没变
+
+**修法**：`md.SaveAs2(tmp, 0, True, True)`（静默、另存）+ `os.replace(tmp, final)`；正常写盘返回 `0`。
+**判据**：字节数 + 重开 + 组件数 + 体积回读，四项对齐（见 `docs/19-assembly-scale.md` §19.5）。
+
+## 117. `Transform2` 的 16 个 double 写错不报错，位姿整体错乱
+
+**现象**：`AddComponent5` 成功、`Transform2` 赋值成功，但 129 个件的位姿全错（碟簧全叠到球心、衬块跑到北极）。
+**根因**：把平移写进了旋转矩阵的第 4 列（`[m00,m01,m02,tx, m10,…]`）。正确布局：`[0..8]` 旋转 3×3（按行）、`[9..11]` 平移（**米**）、`[12]=1`、`[13..15]=0`。
+**修法**：写完**立刻读回**逐件比对；并用几何量（方位/半径/包围盒）复核，而不是只看"设置没报错"。
+
+## 118. `IComponent2.Transform2` 属性赋值偶发失败 → 走私有 setter
+
+**现象**：`cc.Transform2 = mt` 报 `AttributeError` / `TypeError`（comtypes 对该属性生成的描述符不可用）。
+**修法**：`cc._IComponent2__com__set_Transform2(mt)`（comtypes 生成的私有 setter），随后读回校验。
+**判据**：`ArrayData` 与写入值逐位一致。
+
+## 119. PowerShell 5.1 写 .py 会把中文写坏
+
+**现象**：用 `Add-Content` / `Set-Content` 往脚本里写中文注释，Python 读出来是乱码，`SyntaxError` 或字符串全错。
+**修法**：改文件只用编辑工具（UTF-8 无 BOM）；必须用 PowerShell 生成时，驱动 `.ps1` 保持纯 ASCII，中文一律走 Python 写。
+**判据**：`python -c "open(f,encoding='utf-8').read()"` 不抛异常，且源文件首字节不是 `EF BB BF`。
