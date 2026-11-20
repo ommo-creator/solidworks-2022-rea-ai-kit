@@ -13,8 +13,13 @@ metadata:
 用在**动手之前**：定交付物、收约束、选建模策略、把尺寸收进参数表、验设计意图、干净交接。
 一旦要写代码、连 COM、跑脚本，切到 [`../solidworks-2022-automation/SKILL.md`](../solidworks-2022-automation/SKILL.md)。
 
+> **同源说明**：本技能与磁盘上的 `sw-designer`（作者 Delancy，v2.7.0）内容同源，
+> 手册也就是同一份。**二选一安装**，不要两份都装——两份各自演进就会漂移。
+> 打包到这里的好处是：它和 `docs/` 的 2022 实测结论放在同一个仓库里，冲突能就地裁定。
+
 17 章完整手册在 [`references/design-manual.md`](references/design-manual.md)（按需 `rg` 定位再读段，
-不要整本读进上下文）。
+不要整本读进上下文）。手册里的示例代码用的是英文基准面名（`"Front Plane"`），
+在中文版上不可硬编码 —— 见 [`docs/18`](../../docs/18-ui-strings.md)。
 
 ---
 

@@ -59,6 +59,30 @@
 
 ---
 
+## 已知冲突与裁定（**以 2022 实测为准**）
+
+把外部手册一起打包，就必然带进它们的口径。逐条对过一遍之后，有 5 处和本仓库的 2022 实测
+**正面冲突**。裁定只有一条原则：**`docs/` 是唯一事实源**；手册与上游的说法一律降级为"方法论参考"，
+冲突时以 `docs/` 为准，并且下面写清为什么。
+
+| # | 冲突点 | 外部手册 / 上游的说法 | 本仓库 2022 实测 | 裁定 |
+|---|---|---|---|---|
+| 1 | 怎么连上 SolidWorks | `GetActiveObject` **优先**，失败再 `Dispatch`（automation-manual Sec 20/25/39） | comtypes 栈用 **`CreateObject` 语义**；`GetActiveObject` 常报 `0x800401E3 操作不可用`（[`docs/01`](../docs/01-channel-and-rules.md)） | **分栈**：comtypes → `CreateObject`；pywin32 → `GetActiveObject` 失败再 `Dispatch`。两个栈的行为不能互推 |
+| 2 | `FeatureCut4` 能不能在 Python 里用 | **不能**："参数 >12 的 IDispatch 调用全部返回 `None`，必须转 VBA 宏"，于是走"加法建模策略"（automation-manual M6 / Sec 36） | **能用**：27 实参在 Python + comtypes 下正常，孔、让位槽、装配级半剖全是 Python 跑的（[`docs/04`](../docs/04-recipes.md) R38–R44、[`docs/19`](../docs/19-assembly-scale.md) §19.8） | **以实测为准**。`FeatureCut4` 返回 `None` 的真因通常是：草图没画在**被切的那个面**上（铁律 4），或 `T1/T2` 误用 `1`（完全贯穿，坑 103）。"长参数必失败"是把调用错误归因给了 IDispatch |
+| 3 | `AddMate5` 几个实参 | **15 个**（automation-manual Sec 2161） | **14 个**：末位 `ErrorStatus` 是 `[out]`，被 comtypes 摘掉（[`docs/02`](../docs/02-signatures.md)） | 不是版本差异，是**栈差异**：pywin32 保留 `byref` 出参 → 15；comtypes 摘掉 → 14。2022 实测用 14 |
+| 4 | 基准面怎么选 | `SelectByID2("Front Plane", "PLANE", …)`、`"Top Plane"`（design-manual L115、L286） | **中文名不可硬编码**：`草图1` ≠ `Sketch1`，基准面名随语言包变（铁律 5、[`docs/18`](../docs/18-ui-strings.md)） | 英文名只对英文版成立。稳的写法是遍历特征树按 `GetTypeName2()` 找，或按双语兜底 |
+| 5 | 版本基线 | 手册现场结论多在 **SW2024 / 2026**（`FeatureExtrusion2` 标题写 `(SW2024)`） | 全部 = **2022 SP5.0 (30.5.0.0049)** | 参数个数**跨版本会变**。搬之前用 `data/docs-index.json` 重新核对，并先跑 `examples/` 的最小脚本 |
+
+### 两处"同名/同源"要留意
+
+- 本仓库的 `skills/solidworks-design/` 与磁盘上已有的 `sw-designer` 技能**同源**
+  （同一份 17 章手册）。**二选一安装**，否则两份会各自漂移，agent 不知道该信哪份。
+- 仓库根 [`SKILL.md`](../SKILL.md) 的 frontmatter `name` 是 `sw-com-reversed`，
+  与 `dsh-sw-reversed` 插件里那份快照**同名**。同装会撞名——插件那份是旧版
+  （98 条坑 / R1–R36），**以仓库为准**。
+
+---
+
 ## 安装 / 使用
 
 两个位置 agent 都能加载，选一个：
@@ -94,3 +118,23 @@ docs/                      # 做的时候查什么
   [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) 的泄漏检查一步。
 
 技能里的提示词模板同理：它们是**怎么问**，不是**答案**。
+
+---
+
+## 遗留：插件里的文档快照已过期（决定：**暂不同步**）
+
+`dsh-sw-reversed` 插件 `lib/data/` 里冻结的是本仓库的旧快照（`pitfalls.md` 84 KB = 98 条版、
+`recipes.md` = R1–R36 版、`SKILL.md` 22 KB）。仓库现在已经是 119 条 / R1–R44 + `docs/19` + `skills/`。
+
+**不把新内容回灌进插件**，理由三条：
+
+1. 插件是**独立发布产物**，它的文档副本随插件打包，改了 `lib/data/` 不重打包也不会热更新，
+   下一次装插件又被覆盖 —— 同步一次等于制造第三份会漂移的副本。
+2. 插件内置的是 `swe.py` 的裁剪版（26 KB vs 仓库 26 KB 结构不同），文档与代码是配套的；
+   只换文档会造出"文档说的 `swe.py` 里有、插件里没有"的错配。
+3. 冲突已经用**名分**解决了：插件那份 frontmatter `name` 与仓库根 `SKILL.md` 同名
+   （都是 `sw-com-reversed`），本文件上一节已写明"以仓库为准"。再复制一遍只是让两份更像，
+   不会让任何一份更对。
+
+要真同步，正确做法是**改插件的发布流程**（构建时从仓库拷 `docs/` + `SKILL.md` 并打版本号），
+而不是手工覆盖 `lib/data/`。这件事记在这里，作为插件的待办，不是本仓库的待办。

@@ -4,6 +4,9 @@
       版本相关的 API 结论以本仓库 docs/（SolidWorks 2022 实测）为准。
 读法：不要整本读。先 `rg -n "关键词" references/design-manual.md`，再读命中段落。
 边界：不含任何模型、图纸、客户数据或机器路径。
+冲突预警：手册示例里用 `SelectByID2("Front Plane", "PLANE", ...)` 这类**英文基准面名**，
+          本仓库 2022 实测要求中文名不可硬编码（`docs/18-ui-strings.md`、铁律 5）；
+          中文版上请遍历特征树按 `GetTypeName2()` 取，或做双语兜底。
 -->
 
 ---

@@ -20,26 +20,37 @@ metadata:
 
 三者能串起来用，但**事实优先级**是：2022 实测 > 本技能手册 > 上游文档。
 
+随附手册与 2022 实测有 **3 处正面冲突**（连接语义、`FeatureCut4` 可用性、`AddMate5` 实参个数），
+逐条裁定见 [`../README.md`](../README.md) 的「已知冲突与裁定」。照手册抄之前先看那张表。
+
 ---
 
 ## 三条铁律（整套骨架就是为了兜这三条）
 
-### 铁律 1 · 单例复用，不要每次 `Dispatch`
+### 铁律 1 · 复用已有实例，但**别用错语义**
 
-每次 `Dispatch("SldWorks.Application")` 都可能在背后起一个新实例，脚本越跑越慢、窗口越开越多，
-最后 COM 自己断开（`0x800401E3 操作不可用`）。
+每次无脑 `Dispatch` 都可能在背后起一个新实例，脚本越跑越慢、窗口越开越多，
+最后 COM 自己断开。
+
+两条栈的规矩**不一样**，照抄会踩坑：
 
 ```python
-# ❌ 每个脚本无脑新建
-app = win32com.client.Dispatch("SldWorks.Application")
+# 栈 A：comtypes（本仓库 2022 实测路线）—— 用 CreateObject 语义
+import comtypes.client
+sw = comtypes.client.CreateObject("SldWorks.Application")   # ✅ SolidWorks 会复用已运行实例
+# ❌ comtypes 的 GetActiveObject 在 SolidWorks 上常报 0x800401E3「操作不可用」（docs/01）
 
-# ✅ 先复用，确实没有才新建
+# 栈 B：pywin32（上游手册的路线）—— 先取已有，失败再新建
 import win32com.client as w
 try:
-    app = w.GetActiveObject("SldWorks.Application")
+    sw = w.GetActiveObject("SldWorks.Application")
 except Exception:
-    app = w.Dispatch("SldWorks.Application")
+    sw = w.Dispatch("SldWorks.Application")
 ```
+
+**以 [`../../docs/01-channel-and-rules.md`](../../docs/01-channel-and-rules.md) 为准**：
+2022 实测走的是栈 A，`CreateObject` 语义本身就会复用运行中的实例，
+不需要、也不该在 comtypes 里调 `GetActiveObject`。
 
 ### 铁律 2 · W-A-R 闭环：Write → Assert → Read
 
